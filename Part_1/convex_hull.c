@@ -29,12 +29,12 @@ float polygon_area(Point *poly, int n) {
 
 int main() {
     int n;
-    printf("please enter the amount of points (atleast 4):\n");
+    printf("please enter the amount of points (atleast 3):\n");
     scanf("%d", &n);
     getchar();
 
     if (n < 3) {
-     printf("0.0\n");
+     printf("invalid amount of points (atleast 3)\n");
      return 0;
     }
 
