@@ -33,7 +33,7 @@ float polygon_area(Point *poly, int n) {
 
 void compute_convex_hull() {
     if (point_count < 3) {
-        printf("0.0\n");
+        printf("invalid amount of points, atleast 3\n");
         return;
     }
 
@@ -84,20 +84,36 @@ void remove_point(float x, float y) {
 }
 
 int main() {
+
+    printf("Newgraph N - Replace the current graph with N new points\n");
+    printf("CH - Compute and print convex hull area\n");
+    printf("Newpoint x,y - Add a new point to the graph\n");
+    printf("Removepoint x,y - Remove a point from the graph\n");
+
     char command[64];
     while (fgets(command, sizeof(command), stdin)) {
         if (strncmp(command, "Newgraph", 8) == 0) {
-            int n;
-            sscanf(command, "Newgraph %d", &n);
-            free(points);
-            points = malloc(n * sizeof(Point));
-            point_count = 0;
-            for (int i = 0; i < n; i++) {
-                float x, y;
-                if (scanf("%f,%f\n", &x, &y) == 2) {
-                    points[point_count++] = (Point){x, y};
-                }
+    int n;
+    if (sscanf(command, "Newgraph %d", &n) == 1 && n > 0) {
+        free(points);
+        points = malloc(n * sizeof(Point));
+        point_count = 0;
+        printf("Please enter %d points in format x,y each:\n", n);
+        while (point_count < n) {
+            float x, y;
+            if (scanf("%f,%f", &x, &y) == 2) {
+                points[point_count++] = (Point){x, y};
+            } else {
+                printf("Invalid format. Try again (x,y): ");
+                while (getchar() != '\n'); 
             }
+        }
+        getchar(); 
+        printf("The graph is all set up with %d points.\n", point_count);
+    } else {
+        printf("Invalid Newgraph command format.\n");
+    }
+
         } else if (strncmp(command, "CH", 2) == 0) {
             compute_convex_hull();
         } else if (strncmp(command, "Newpoint", 8) == 0) {
