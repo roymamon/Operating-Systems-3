@@ -6,7 +6,8 @@
 #include <sys/socket.h>
 #include <netinet/in.h>
 #include <math.h>
-#include "proactor.h"
+#include "patterns/reactor.h"
+#include "patterns/proactor.h"
 
 #define PORT 9034
 #define BUFFER_SIZE 1024
