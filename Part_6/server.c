@@ -5,7 +5,7 @@
 #include <netinet/in.h>
 #include <sys/socket.h>
 #include <arpa/inet.h>
-#include "reactor.h"
+#include "patterns/reactor.h"
 #include <math.h>
 
 typedef struct {

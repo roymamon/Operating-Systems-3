@@ -1,17 +1,19 @@
 CC = gcc
-CFLAGS = -Wall -g
-OBJS = server.o reactor.o
+CFLAGS = -Wall -g -pthread -Ipatterns
 
 all: server
 
-server: $(OBJS)
-	$(CC) $(CFLAGS) -o server $(OBJS)
+libpatterns.a: patterns/reactor.o
+	ar rcs libpatterns.a patterns/reactor.o
 
-server.o: server.c reactor.h
+server: server.o libpatterns.a
+	$(CC) $(CFLAGS) -o server server.o libpatterns.a -lm
+
+server.o: server.c patterns/reactor.h
 	$(CC) $(CFLAGS) -c server.c
 
-reactor.o: reactor.c reactor.h
-	$(CC) $(CFLAGS) -c reactor.c
+patterns/reactor.o: patterns/reactor.c patterns/reactor.h
+	$(CC) $(CFLAGS) -c patterns/reactor.c -o patterns/reactor.o
 
 clean:
-	rm -f *.o server
+	rm -f *.o server libpatterns.a patterns/*.o
