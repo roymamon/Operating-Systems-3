@@ -1,16 +1,23 @@
-CC=gcc
-CFLAGS=-Wall -g
+CC = gcc
+CFLAGS = -Wall -g -pthread
+INCLUDES = -Ipatterns
 
-all: test_reactor
+LIB = libpatterns.a
+PATTERN_OBJS = patterns/reactor.o
 
-test_reactor: reactor.o test_reactor.o
-	$(CC) $(CFLAGS) -o test_reactor reactor.o test_reactor.o
+all: $(LIB) test_reactor
 
-reactor.o: reactor.c reactor.h
-	$(CC) $(CFLAGS) -c reactor.c
+$(LIB): $(PATTERN_OBJS)
+	ar rcs $(LIB) $(PATTERN_OBJS)
 
-test_reactor.o: test_reactor.c reactor.h
-	$(CC) $(CFLAGS) -c test_reactor.c
+patterns/reactor.o: patterns/reactor.c patterns/reactor.h
+	$(CC) $(CFLAGS) $(INCLUDES) -c patterns/reactor.c -o patterns/reactor.o
+
+test_reactor: test_reactor.o $(LIB)
+	$(CC) $(CFLAGS) $(INCLUDES) -o test_reactor test_reactor.o $(LIB)
+
+test_reactor.o: test_reactor.c patterns/reactor.h
+	$(CC) $(CFLAGS) $(INCLUDES) -c test_reactor.c
 
 clean:
-	rm -f *.o test_reactor
+	rm -f *.o patterns/*.o $(LIB) test_reactor

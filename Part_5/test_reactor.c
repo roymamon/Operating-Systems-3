@@ -2,7 +2,7 @@
 #include <stdlib.h>
 #include <unistd.h>
 #include <string.h>
-#include "reactor.h"
+#include "patterns/reactor.h"
 
 void handle_stdin(int fd) {
     char buffer[128];
