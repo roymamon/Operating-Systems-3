@@ -48,6 +48,5 @@ pthread_t startProactor(int sockfd, proactorFunc threadFunc) {
 }
 
 int stopProactor(pthread_t tid) {
-    // For assignment purposes, assume the proactor runs forever.
     return pthread_cancel(tid);
 }

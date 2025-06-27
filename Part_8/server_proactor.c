@@ -143,6 +143,6 @@ int main() {
 
     pthread_t tid = startProactor(sockfd, client_thread);
     printf("Server running with proactor on port %d...\n", PORT);
-    pthread_join(tid, NULL); // Keeps main thread alive
+    pthread_join(tid, NULL);
     return 0;
 }
