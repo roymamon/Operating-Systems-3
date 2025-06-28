@@ -6,10 +6,11 @@
 #include <sys/socket.h>
 #include <netinet/in.h>
 #include <math.h>
+#include "patterns/reactor.h"
 #include "patterns/proactor.h"
 
+#define DEFAULT_PORT 9034
 #define BUFFER_SIZE 1024
-#define AREA_THRESHOLD 100.0
 
 typedef struct {
     float x, y;
@@ -21,11 +22,8 @@ int point_count = 0;
 pthread_mutex_t graph_mutex = PTHREAD_MUTEX_INITIALIZER;
 pthread_cond_t area_cond = PTHREAD_COND_INITIALIZER;
 
-float last_area = 0;
-int area_status = 0;  // 0 = < 100, 1 = >= 100
-
-float polygon_area(Point *poly, int n);
-void notify_if_area_changed(float new_area);
+float last_area = 0.0;
+int area_over_100 = 0;
 
 int compare(const void *a, const void *b) {
     Point *p1 = (Point *)a, *p2 = (Point *)b;
@@ -47,10 +45,10 @@ float polygon_area(Point *poly, int n) {
     return fabs(area) / 2.0;
 }
 
-void compute_convex_hull(int client_fd) {
+float compute_convex_hull(int client_fd) {
     if (point_count < 3) {
         send(client_fd, "Not enough points\n", 18, 0);
-        return;
+        return 0.0;
     }
 
     Point *hull = malloc(2 * point_count * sizeof(Point));
@@ -70,39 +68,41 @@ void compute_convex_hull(int client_fd) {
     }
 
     float area = polygon_area(hull, k - 1);
-    notify_if_area_changed(area);
-
     char msg[64];
     snprintf(msg, sizeof(msg), "Convex Hull Area: %.1f\n", area);
     send(client_fd, msg, strlen(msg), 0);
     free(hull);
+
+    return area;
 }
 
-void notify_if_area_changed(float new_area) {
-    int new_status = new_area >= AREA_THRESHOLD ? 1 : 0;
-
-    if (new_status != area_status) {
-        area_status = new_status;
-        pthread_cond_signal(&area_cond);
-    }
-
-    last_area = new_area;
-}
+int thread_counter = 1;
 
 void *area_monitor_thread(void *arg) {
+    int tid = __sync_fetch_and_add(&thread_counter, 1);
+    printf("Thread %d: Area monitor started\n", tid);
+
     while (1) {
         pthread_mutex_lock(&graph_mutex);
         pthread_cond_wait(&area_cond, &graph_mutex);
-        if (area_status)
+
+        if (last_area >= 100.0 && !area_over_100) {
             printf("At least 100 units belongs to CH\n");
-        else
+            area_over_100 = 1;
+        } else if (last_area < 100.0 && area_over_100) {
             printf("At least 100 units no longer belongs to CH\n");
+            area_over_100 = 0;
+        }
+
         pthread_mutex_unlock(&graph_mutex);
     }
     return NULL;
 }
 
 void *client_thread(int *client_fd_ptr) {
+    int tid = __sync_fetch_and_add(&thread_counter, 1);
+    printf("Thread %d: handling a client\n", tid);
+
     int client_fd = *client_fd_ptr;
     free(client_fd_ptr);
 
@@ -114,6 +114,7 @@ void *client_thread(int *client_fd_ptr) {
         if (bytes <= 0) break;
 
         pthread_mutex_lock(&graph_mutex);
+
         if (strncmp(buffer, "Newgraph", 8) == 0) {
             int n;
             sscanf(buffer, "Newgraph %d", &n);
@@ -130,6 +131,7 @@ void *client_thread(int *client_fd_ptr) {
                 }
             }
             send(client_fd, "Graph created successfully\n", 27, 0);
+
         } else if (strncmp(buffer, "Newpoint", 8) == 0) {
             float x, y;
             if (sscanf(buffer, "Newpoint %f,%f", &x, &y) == 2) {
@@ -137,6 +139,7 @@ void *client_thread(int *client_fd_ptr) {
                 points[point_count++] = (Point){x, y};
                 send(client_fd, "Point added\n", 12, 0);
             }
+
         } else if (strncmp(buffer, "Removepoint", 11) == 0) {
             float x, y;
             if (sscanf(buffer, "Removepoint %f,%f", &x, &y) == 2) {
@@ -152,11 +155,14 @@ void *client_thread(int *client_fd_ptr) {
                 }
                 send(client_fd, "Point removed\n", 14, 0);
             }
+
         } else if (strncmp(buffer, "CH", 2) == 0) {
-            compute_convex_hull(client_fd);
+            last_area = compute_convex_hull(client_fd);
+            pthread_cond_signal(&area_cond);
         } else {
             send(client_fd, "Unknown command\n", 16, 0);
         }
+
         pthread_mutex_unlock(&graph_mutex);
     }
 
@@ -165,7 +171,12 @@ void *client_thread(int *client_fd_ptr) {
 }
 
 int main(int argc, char *argv[]) {
-    int port = (argc >= 2) ? atoi(argv[1]) : 9034;
+    int port = DEFAULT_PORT;
+    if (argc > 1) {
+        port = atoi(argv[1]);
+    }
+
+    printf("Using port: %d\n", port);
 
     int sockfd = socket(AF_INET, SOCK_STREAM, 0);
     struct sockaddr_in server_addr = {
@@ -175,13 +186,18 @@ int main(int argc, char *argv[]) {
     };
     bind(sockfd, (struct sockaddr *)&server_addr, sizeof(server_addr));
     listen(sockfd, 10);
+  
+    printf("Server running with proactor on port %d...\n", port);
+
+    pthread_t accept_tid = startProactor(sockfd, client_thread);
 
     pthread_t monitor_tid;
     pthread_create(&monitor_tid, NULL, area_monitor_thread, NULL);
 
-    pthread_t tid = startProactor(sockfd, client_thread);
-    printf("Server running with proactor on port %d...\n", port);
 
-    pthread_join(tid, NULL);
+    pthread_join(accept_tid, NULL);
+    pthread_join(monitor_tid, NULL);
+
+    free(points);
     return 0;
 }

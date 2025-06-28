@@ -1,49 +1,48 @@
-#include "proactor.h"
-#include <stdlib.h>
 #include <stdio.h>
+#include <stdlib.h>
 #include <unistd.h>
 #include <pthread.h>
-#include <sys/socket.h>
 #include <netinet/in.h>
+#include <string.h>
+#include "proactor.h"
+#include <stdatomic.h>
+
+extern atomic_int thread_counter;
 
 typedef struct {
     int sockfd;
     proactorFunc func;
-} proactor_args_t;
+} ProactorContext;
 
-void *proactor_main(void *arg) {
-    proactor_args_t *args = (proactor_args_t *)arg;
-    int listen_fd = args->sockfd;
-    proactorFunc handler = args->func;
-    free(arg);
+void *accept_loop(void *arg) {
+    ProactorContext *ctx = (ProactorContext *)arg;
+
+    int thread_id = atomic_fetch_add(&thread_counter, 1);
+    printf("Thread %d: Accept thread started\n", thread_id);
 
     while (1) {
-        struct sockaddr_in client_addr;
-        socklen_t addr_len = sizeof(client_addr);
-        int client_fd = accept(listen_fd, (struct sockaddr *)&client_addr, &addr_len);
-        if (client_fd < 0) {
-            perror("accept");
-            continue;
-        }
+        struct sockaddr_in client;
+        socklen_t len = sizeof(client);
+        int client_fd = accept(ctx->sockfd, (struct sockaddr*)&client, &len);
+        if (client_fd < 0) continue;
 
-        int *fd_ptr = malloc(sizeof(int));
-        *fd_ptr = client_fd;
+        int *pclient = malloc(sizeof(int));
+        *pclient = client_fd;
 
-        pthread_t t;
-        pthread_create(&t, NULL, (void *(*)(void *))handler, fd_ptr);
-        pthread_detach(t);
+        pthread_t tid;
+        pthread_create(&tid, NULL, (void *(*)(void *))ctx->func, pclient);
+        pthread_detach(tid);
     }
-
     return NULL;
 }
 
 pthread_t startProactor(int sockfd, proactorFunc threadFunc) {
-    proactor_args_t *args = malloc(sizeof(proactor_args_t));
-    args->sockfd = sockfd;
-    args->func = threadFunc;
+    ProactorContext *ctx = malloc(sizeof(ProactorContext));
+    ctx->sockfd = sockfd;
+    ctx->func = threadFunc;
 
     pthread_t tid;
-    pthread_create(&tid, NULL, proactor_main, args);
+    pthread_create(&tid, NULL, accept_loop, ctx);
     return tid;
 }
 
