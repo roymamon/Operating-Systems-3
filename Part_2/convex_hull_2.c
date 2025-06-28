@@ -2,7 +2,7 @@
 #include <stdlib.h>
 #include <math.h>
 //set to 0 to use merge sort
-#define USE_QSORT 0
+#define USE_QSORT 1
 
 typedef struct {
     float x, y;
